@@ -2,6 +2,8 @@ package codes.blitz.game.bot;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+
 import java.util.Random;
 
 import codes.blitz.game.message.game.*;
@@ -11,13 +13,32 @@ public class Bot {
     public Bot() {
         System.out.println("Initializing your super duper mega bot.");
     }
+    private String flexibleCrewmateId = null; // ID du membre d'équipage flexible
+    private boolean isFlexibleCrewmateAtTurret = false; // Indique si le membre flexible est actuellement à une tourelle
+
+    private Position cible = null;
+
 
     public List<Action> getActions(GameMessage gameMessage) {
         List<Action> actions = new ArrayList<>();
 
+        // Vérifier si c'est le premier tick
+        if (gameMessage.currentTickNumber() <= 1) {
+            // Actions spécifiques pour le premier tick
+            actions.addAll(handleFirstTick(gameMessage));
+        } else {
+            // Actions pour les ticks suivants
+            actions.addAll(handleSubsequentTicks(gameMessage));
+        }
+
+        return actions;
+    }
+
+    private List<Action> handleFirstTick(GameMessage gameMessage) {
+        List<Action> actions = new ArrayList<>();
         Ship myShip = gameMessage.ships().get(gameMessage.currentTeamId());
-        List<String> otherShipsIds = new ArrayList<>(gameMessage.shipsPositions().keySet());
-        otherShipsIds.removeIf(shipId -> shipId.equals(gameMessage.currentTeamId()));
+
+        cible = findFarthestEnemyShipPosition(myShip.worldPosition(), gameMessage.shipsPositions());
 
         List<Crewmate> idleCrewmates = new ArrayList<>(myShip.crew());
         //idleCrewmates.removeIf(crewmate -> crewmate.currentStation() != null || crewmate.destination() != null);
@@ -29,7 +50,13 @@ public class Bot {
             ShieldStation shieldStation = shieldStations.get(i);
             actions.add(new MoveCrewAction(crewmate.id(), shieldStation.gridPosition()));
             idleCrewmates.remove(crewmate);
+            if (i == 0) { // Prendre le premier membre d'équipage pour être flexible
+                flexibleCrewmateId = crewmate.id();
+            }
         }
+
+
+       // Vector positionEnnemy = new Vector((farthestEnemyPosition.x()), farthestEnemyPosition.y());
 
         // Assignez les Crewmates aux stations de type FAST, EMP, NORMAL, CANNON, SNIPER dans cet ordre de priorité
         List<TurretStation> turretStations = new ArrayList<>(myShip.stations().turrets());
@@ -44,42 +71,81 @@ public class Bot {
             }
         }
 
-
-
-        // Now assign other idle crewmates to random stations
+        // Assigner les membres d'équipage aux stations d'armes
         for (Crewmate crewmate : idleCrewmates) {
-            List<StationDistance> visitableStations = new ArrayList<>();
-            visitableStations.addAll(crewmate.distanceFromStations().turrets());
-
-            if (!visitableStations.isEmpty()) {
-                StationDistance stationToMoveTo = visitableStations.get(new Random().nextInt(visitableStations.size()));
-                actions.add(new MoveCrewAction(crewmate.id(),
-                stationToMoveTo.stationPosition()));
+            List<StationDistance> turrets = new ArrayList<>(crewmate.distanceFromStations().turrets());
+            if (!turrets.isEmpty()) {
+                StationDistance turretStation = turrets.get(0); // Choisissez la première station de tourelle disponible
+                actions.add(new MoveCrewAction(crewmate.id(), turretStation.stationPosition()));
+                idleCrewmates.remove(crewmate);
+            }
+            // Sortir de la boucle si tous les membres d'équipage inactifs ont été assignés
+            if (idleCrewmates.isEmpty()) {
+                break;
             }
         }
-        // Now crew members at stations should do something!
-        List<TurretStation> operatedTurretStations = new ArrayList<>(myShip.stations().turrets());
-        operatedTurretStations.removeIf(turretStation -> turretStation.operator() == null);
-        for (TurretStation turretStation : operatedTurretStations) {
-            actions.add(new TurretShootAction(turretStation.id()));
-        }
-
-        List<HelmStation> operatedHelmStation = new ArrayList<>(myShip.stations().helms());
-        operatedHelmStation.removeIf(helmStation -> helmStation.operator() == null);
-        for (HelmStation helmStation : operatedHelmStation) {
-            actions.add(new RotateShipAction(90));
-        }
-
-        List<RadarStation> operatedRadarStations = new ArrayList<>(myShip.stations().radars());
-        operatedRadarStations.removeIf(radarStation -> radarStation.operator() == null);
-        for (RadarStation radarStation : operatedRadarStations) {
-            actions.add(new RadarScanAction(radarStation.id(), otherShipsIds.get(new Random().nextInt(otherShipsIds.size()))));
-        }
-
-        // You can clearly do better than the random actions above. Have fun!!
         return actions;
     }
 
+    private List<Action> handleSubsequentTicks(GameMessage gameMessage) {
+        List<Action> actions = new ArrayList<>();
+        Ship myShip = gameMessage.ships().get(gameMessage.currentTeamId());
+
+        // Vérifier l'état du bouclier et déplacer le membre d'équipage flexible si nécessaire
+        if ((myShip.currentShield() > 75 && flexibleCrewmateId != null && !isFlexibleCrewmateAtTurret) || myShip.currentHealth() < 75) {
+            TurretStation turretStation = findAvailableTurretStation(myShip.stations().turrets());
+            if (turretStation != null) {
+                actions.add(new MoveCrewAction(flexibleCrewmateId, turretStation.gridPosition()));
+                isFlexibleCrewmateAtTurret = true; // Le membre est maintenant à une tourelle
+            }
+        } else if (myShip.currentShield() <= 25 && flexibleCrewmateId != null) {
+            ShieldStation shieldStation = findAvailableShieldStation(myShip.stations().shields());
+            if (shieldStation != null) {
+                actions.add(new MoveCrewAction(flexibleCrewmateId, shieldStation.gridPosition()));
+                isFlexibleCrewmateAtTurret = false; // Le membre est maintenant au bouclier
+            }
+        }
+
+        cible = findFarthestEnemyShipPosition(myShip.worldPosition(), gameMessage.shipsPositions());
+
+        // Actions pour les membres d'équipage aux stations de tir (tourelles)
+        List<TurretStation> operatedTurretStations = new ArrayList<>(myShip.stations().turrets());
+        operatedTurretStations.removeIf(turretStation -> turretStation.operator() == null);
+
+
+        for (TurretStation turretStation : operatedTurretStations) {
+
+
+            actions.add(new TurretShootAction(turretStation.id()));
+            actions.add(new TurretLookAtAction(turretStation.id(), cible.toVector()));
+        }
+
+        // Ajoutez ici d'autres actions répétitives pour chaque tick
+        // Par exemple, réorienter le vaisseau, scanner avec le radar, etc.
+        // ...
+
+        return actions;
+    }
+
+    // Méthode pour trouver une station de tourelle disponible
+    private TurretStation findAvailableTurretStation(List<TurretStation> turretStations) {
+        for (TurretStation turretStation : turretStations) {
+            if (turretStation.operator() == null) {
+                return turretStation;
+            }
+        }
+        return null;
+    }
+
+    // Méthode pour trouver une station de bouclier disponible
+    private ShieldStation findAvailableShieldStation(List<ShieldStation> shieldStations) {
+        for (ShieldStation shieldStation : shieldStations) {
+            if (shieldStation.operator() == null) {
+                return shieldStation;
+            }
+        }
+        return null;
+    }
     // Méthode utilitaire pour trouver une TurretStation par type
     private TurretStation findTurretByType(List<TurretStation> turretStations, String turretType) {
         for (TurretStation turretStation : turretStations) {
@@ -90,4 +156,30 @@ public class Bot {
         }
         return null;
     }
+
+    private double calculateDistance(Position p1, Position p2) {
+        double deltaX = p2.x() - p1.x();
+        double deltaY = p2.y() - p1.y();
+        return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    }
+    private Position findFarthestEnemyShipPosition(Position myPosition, Map<String, Position> shipsPositions) {
+        double maxDistance = 0;
+        Position farthestEnemyPosition = null;
+
+        for (Map.Entry<String, Position> entry : shipsPositions.entrySet()) {
+            String enemyId = entry.getKey();
+            Position enemyPosition = entry.getValue();
+
+            double distance = calculateDistance(myPosition, enemyPosition);
+
+            if (distance > maxDistance) {
+                maxDistance = distance;
+                farthestEnemyPosition = enemyPosition;
+            }
+        }
+
+        return farthestEnemyPosition;
+    }
+
+
 }
