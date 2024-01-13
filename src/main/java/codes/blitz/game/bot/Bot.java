@@ -32,16 +32,27 @@ public class Bot {
         Ship myShip = gameMessage.ships().get(gameMessage.currentTeamId());
 
         List<Crewmate> idleCrewmates = new ArrayList<>(myShip.crew());
-        idleCrewmates.removeIf(crewmate -> crewmate.currentStation() != null || crewmate.destination() != null);
+        //idleCrewmates.removeIf(crewmate -> crewmate.currentStation() != null || crewmate.destination() != null);
 
-        // Assigner les membres d'équipage aux stations de boucliers
+        // Assignez 2 Crewmates aux stations de bouclier si disponibles
         List<ShieldStation> shieldStations = new ArrayList<>(myShip.stations().shields());
-        for (int i = 0; i < Math.min(2, idleCrewmates.size()); i++) {
+        for (int i = 0; i < Math.min(2, idleCrewmates.size()) && !shieldStations.isEmpty(); i++) {
             Crewmate crewmate = idleCrewmates.get(i);
-            if (i < shieldStations.size()) {
-                ShieldStation shieldStation = shieldStations.get(i);
-                actions.add(new MoveCrewAction(crewmate.id(), shieldStation.gridPosition()));
-                idleCrewmates.remove(crewmate);
+            ShieldStation shieldStation = shieldStations.get(i);
+            actions.add(new MoveCrewAction(crewmate.id(), shieldStation.gridPosition()));
+            idleCrewmates.remove(crewmate);
+        }
+
+        // Assignez les Crewmates aux stations de type FAST, EMP, NORMAL, CANNON, SNIPER dans cet ordre de priorité
+        List<TurretStation> turretStations = new ArrayList<>(myShip.stations().turrets());
+        for (String turretType : List.of("FAST", "EMP", "NORMAL", "CANNON", "SNIPER")) {
+            for (Crewmate crewmate : idleCrewmates) {
+                TurretStation turretStation = findTurretByType(turretStations, turretType);
+                if (turretStation != null) {
+                    actions.add(new MoveCrewAction(crewmate.id(), turretStation.gridPosition()));
+                    idleCrewmates.remove(crewmate);
+                    break; // Sortir de la boucle interne une fois qu'un Crewmate est assigné
+                }
             }
         }
 
@@ -70,7 +81,6 @@ public class Bot {
         operatedTurretStations.removeIf(turretStation -> turretStation.operator() == null);
 
         for (TurretStation turretStation : operatedTurretStations) {
-            // Exemple de logique de tir
             actions.add(new TurretShootAction(turretStation.id()));
         }
 
@@ -79,5 +89,16 @@ public class Bot {
         // ...
 
         return actions;
+    }
+
+    // Méthode utilitaire pour trouver une TurretStation par type
+    private TurretStation findTurretByType(List<TurretStation> turretStations, String turretType) {
+        for (TurretStation turretStation : turretStations) {
+            if (turretStation.turretType().equals(TurretType.valueOf(turretType))) {
+                turretStations.remove(turretStation);
+                return turretStation;
+            }
+        }
+        return null;
     }
 }
