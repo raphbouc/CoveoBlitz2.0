@@ -11,6 +11,9 @@ public class Bot {
     public Bot() {
         System.out.println("Initializing your super duper mega bot.");
     }
+    private String flexibleCrewmateId = null; // ID du membre d'équipage flexible
+    private boolean isFlexibleCrewmateAtTurret = false; // Indique si le membre flexible est actuellement à une tourelle
+
 
     public List<Action> getActions(GameMessage gameMessage) {
         List<Action> actions = new ArrayList<>();
@@ -41,6 +44,9 @@ public class Bot {
             ShieldStation shieldStation = shieldStations.get(i);
             actions.add(new MoveCrewAction(crewmate.id(), shieldStation.gridPosition()));
             idleCrewmates.remove(crewmate);
+            if (i == 0) { // Prendre le premier membre d'équipage pour être flexible
+                flexibleCrewmateId = crewmate.id();
+            }
         }
 
         // Assignez les Crewmates aux stations de type FAST, EMP, NORMAL, CANNON, SNIPER dans cet ordre de priorité
@@ -76,6 +82,20 @@ public class Bot {
         List<Action> actions = new ArrayList<>();
         Ship myShip = gameMessage.ships().get(gameMessage.currentTeamId());
 
+        // Vérifier l'état du bouclier et déplacer le membre d'équipage flexible si nécessaire
+        if (myShip.currentShield() > 75 && flexibleCrewmateId != null && !isFlexibleCrewmateAtTurret) {
+            TurretStation turretStation = findAvailableTurretStation(myShip.stations().turrets());
+            if (turretStation != null) {
+                actions.add(new MoveCrewAction(flexibleCrewmateId, turretStation.gridPosition()));
+                isFlexibleCrewmateAtTurret = true; // Le membre est maintenant à une tourelle
+            }
+        } else if (myShip.currentShield() <= 50 && flexibleCrewmateId != null) {
+            ShieldStation shieldStation = findAvailableShieldStation(myShip.stations().shields());
+            if (shieldStation != null) {
+                actions.add(new MoveCrewAction(flexibleCrewmateId, shieldStation.gridPosition()));
+                isFlexibleCrewmateAtTurret = false; // Le membre est maintenant au bouclier
+            }
+        }
         // Actions pour les membres d'équipage aux stations de tir (tourelles)
         List<TurretStation> operatedTurretStations = new ArrayList<>(myShip.stations().turrets());
         operatedTurretStations.removeIf(turretStation -> turretStation.operator() == null);
@@ -91,6 +111,25 @@ public class Bot {
         return actions;
     }
 
+    // Méthode pour trouver une station de tourelle disponible
+    private TurretStation findAvailableTurretStation(List<TurretStation> turretStations) {
+        for (TurretStation turretStation : turretStations) {
+            if (turretStation.operator() == null) {
+                return turretStation;
+            }
+        }
+        return null;
+    }
+
+    // Méthode pour trouver une station de bouclier disponible
+    private ShieldStation findAvailableShieldStation(List<ShieldStation> shieldStations) {
+        for (ShieldStation shieldStation : shieldStations) {
+            if (shieldStation.operator() == null) {
+                return shieldStation;
+            }
+        }
+        return null;
+    }
     // Méthode utilitaire pour trouver une TurretStation par type
     private TurretStation findTurretByType(List<TurretStation> turretStations, String turretType) {
         for (TurretStation turretStation : turretStations) {
