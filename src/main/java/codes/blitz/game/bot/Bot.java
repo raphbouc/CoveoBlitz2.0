@@ -15,31 +15,26 @@ public class Bot {
     public List<Action> getActions(GameMessage gameMessage) {
         List<Action> actions = new ArrayList<>();
 
+        // Vérifier si c'est le premier tick
+        if (gameMessage.currentTickNumber() == 1) {
+            // Actions spécifiques pour le premier tick
+            actions.addAll(handleFirstTick(gameMessage));
+        } else {
+            // Actions pour les ticks suivants
+            actions.addAll(handleSubsequentTicks(gameMessage));
+        }
+
+        return actions;
+    }
+
+    private List<Action> handleFirstTick(GameMessage gameMessage) {
+        List<Action> actions = new ArrayList<>();
         Ship myShip = gameMessage.ships().get(gameMessage.currentTeamId());
-        List<String> otherShipsIds = new ArrayList<>(gameMessage.shipsPositions().keySet());
-        otherShipsIds.removeIf(shipId -> shipId.equals(gameMessage.currentTeamId()));
 
         List<Crewmate> idleCrewmates = new ArrayList<>(myShip.crew());
         idleCrewmates.removeIf(crewmate -> crewmate.currentStation() != null || crewmate.destination() != null);
 
-        TurretStation fastTurret = null;
-        List<TurretStation> allTurrets = myShip.stations().turrets();
-
-        for (TurretStation turretStation : allTurrets) {
-            // Assurez-vous que la comparaison avec le type de turret est correcte
-            if (turretStation.turretType() == TurretType.FAST) {
-                fastTurret = turretStation;
-                break;
-            }
-        }
-
-        if (fastTurret != null && !idleCrewmates.isEmpty()) {
-            Crewmate crewmate = idleCrewmates.get(0);
-            actions.add(new MoveCrewAction(crewmate.id(), fastTurret.gridPosition()));
-            idleCrewmates.remove(crewmate);
-        }
-
-
+        // Assigner les membres d'équipage aux stations de boucliers
         List<ShieldStation> shieldStations = new ArrayList<>(myShip.stations().shields());
         for (int i = 0; i < Math.min(2, idleCrewmates.size()); i++) {
             Crewmate crewmate = idleCrewmates.get(i);
@@ -50,54 +45,39 @@ public class Bot {
             }
         }
 
-
-
-        // Now assign other idle crewmates to random stations
+        // Assigner les membres d'équipage aux stations d'armes
         for (Crewmate crewmate : idleCrewmates) {
-            List<StationDistance> visitableStations = new ArrayList<>();
-            visitableStations.addAll(crewmate.distanceFromStations().turrets());
-
-            if (!visitableStations.isEmpty()) {
-                StationDistance stationToMoveTo = visitableStations.get(new Random().nextInt(visitableStations.size()));
-                actions.add(new MoveCrewAction(crewmate.id(),
-                stationToMoveTo.stationPosition()));
+            List<StationDistance> turrets = new ArrayList<>(crewmate.distanceFromStations().turrets());
+            if (!turrets.isEmpty()) {
+                StationDistance turretStation = turrets.get(0); // Choisissez la première station de tourelle disponible
+                actions.add(new MoveCrewAction(crewmate.id(), turretStation.stationPosition()));
+                idleCrewmates.remove(crewmate);
+            }
+            // Sortir de la boucle si tous les membres d'équipage inactifs ont été assignés
+            if (idleCrewmates.isEmpty()) {
+                break;
             }
         }
+        return actions;
+    }
 
-                        // Now crew members at stations should do something!
+    private List<Action> handleSubsequentTicks(GameMessage gameMessage) {
+        List<Action> actions = new ArrayList<>();
+        Ship myShip = gameMessage.ships().get(gameMessage.currentTeamId());
+
+        // Actions pour les membres d'équipage aux stations de tir (tourelles)
         List<TurretStation> operatedTurretStations = new ArrayList<>(myShip.stations().turrets());
         operatedTurretStations.removeIf(turretStation -> turretStation.operator() == null);
+
         for (TurretStation turretStation : operatedTurretStations) {
-            int switchAction = new Random().nextInt(3);
-            switch (switchAction) {
-                case 0:
-                    // Charge the turret
-                    actions.add(new TurretChargeAction(turretStation.id()));
-                    break;
-                case 1:
-                    // Aim at the turret itself
-                    actions.add(new TurretLookAtAction(turretStation.id(), new Vector(gameMessage.constants().world().width() * Math.random(), gameMessage.constants().world().width() * Math.random())));
-                    break;
-                case 2:
-                    // Shoot!
-                    actions.add(new TurretShootAction(turretStation.id()));
-                    break;
-            }
+            // Exemple de logique de tir
+            actions.add(new TurretShootAction(turretStation.id()));
         }
 
-        List<HelmStation> operatedHelmStation = new ArrayList<>(myShip.stations().helms());
-        operatedHelmStation.removeIf(helmStation -> helmStation.operator() == null);
-        for (HelmStation helmStation : operatedHelmStation) {
-            actions.add(new RotateShipAction(90));
-        }
+        // Ajoutez ici d'autres actions répétitives pour chaque tick
+        // Par exemple, réorienter le vaisseau, scanner avec le radar, etc.
+        // ...
 
-        List<RadarStation> operatedRadarStations = new ArrayList<>(myShip.stations().radars());
-        operatedRadarStations.removeIf(radarStation -> radarStation.operator() == null);
-        for (RadarStation radarStation : operatedRadarStations) {
-            actions.add(new RadarScanAction(radarStation.id(), otherShipsIds.get(new Random().nextInt(otherShipsIds.size()))));
-        }
-
-        // You can clearly do better than the random actions above. Have fun!!
         return actions;
     }
 }
