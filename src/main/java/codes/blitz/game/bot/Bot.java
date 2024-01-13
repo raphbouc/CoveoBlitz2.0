@@ -22,16 +22,6 @@ public class Bot {
         List<Crewmate> idleCrewmates = new ArrayList<>(myShip.crew());
         idleCrewmates.removeIf(crewmate -> crewmate.currentStation() != null || crewmate.destination() != null);
 
-        List<ShieldStation> shieldStations = new ArrayList<>(myShip.stations().shields());
-        for (int i = 0; i < Math.min(2, idleCrewmates.size()); i++) {
-            Crewmate crewmate = idleCrewmates.get(i);
-            if (i < shieldStations.size()) {
-                ShieldStation shieldStation = shieldStations.get(i);
-                actions.add(new MoveCrewAction(crewmate.id(), shieldStation.gridPosition()));
-                idleCrewmates.remove(crewmate);
-            }
-        }
-
         TurretStation fastTurret = null;
         List<TurretStation> allTurrets = myShip.stations().turrets();
 
@@ -44,10 +34,23 @@ public class Bot {
         }
 
         if (fastTurret != null && !idleCrewmates.isEmpty()) {
-            Crewmate crewmate = idleCrewmates.get(2);
+            Crewmate crewmate = idleCrewmates.get(0);
             actions.add(new MoveCrewAction(crewmate.id(), fastTurret.gridPosition()));
             idleCrewmates.remove(crewmate);
         }
+
+
+        List<ShieldStation> shieldStations = new ArrayList<>(myShip.stations().shields());
+        for (int i = 0; i < Math.min(2, idleCrewmates.size()); i++) {
+            Crewmate crewmate = idleCrewmates.get(i);
+            if (i < shieldStations.size()) {
+                ShieldStation shieldStation = shieldStations.get(i);
+                actions.add(new MoveCrewAction(crewmate.id(), shieldStation.gridPosition()));
+                idleCrewmates.remove(crewmate);
+            }
+        }
+
+
 
         // Now assign other idle crewmates to random stations
         for (Crewmate crewmate : idleCrewmates) {
