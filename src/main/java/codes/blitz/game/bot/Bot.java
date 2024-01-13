@@ -50,7 +50,7 @@ public class Bot {
                 flexibleCrewmateId = crewmate.id();
             }
         }
-        Position farthestEnemyPosition = findFarthestEnemyShipPosition(myShip.worldPosition(), gameMessage.shipsPositions());
+
 
        // Vector positionEnnemy = new Vector((farthestEnemyPosition.x()), farthestEnemyPosition.y());
 
@@ -65,25 +65,6 @@ public class Bot {
                     break; // Sortir de la boucle interne une fois qu'un Crewmate est assigné
                 }
             }
-        }
-
-        List<TurretStation> turretOrientation = new ArrayList<>(myShip.stations().turrets());
-        System.out.println("liste  :  " + turretOrientation);
-        for (TurretStation turretStation : turretStations) {
-
-                //Vector test = new Vector (1,0);
-                //actions.add(new TurretLookAtAction(turretStation.id(), positionEnnemy));
-                //actions.add(new TurretLookAtAction(turretStation.id(), farthestEnemyPosition.toVector()));
-
-            System.out.println("|||||||||"+ turretStation.operator()+ " -" + turretStation.orientationDegrees());
-                actions.add(new RotateTurretAction(turretStation.id(), 270));
-                System.out.println("turrelOrientationdegree    :   " +   turretStation.orientationDegrees());
-
-                // actions.add(new TurretShootAction(turretStation.id()));
-               // System.out.println("shooter   :   " + positionEnnemy);
-                System.out.println(" direction   : " + farthestEnemyPosition);
-                System.out.println("ajjsj    :  " + gameMessage.shipsPositions());
-
         }
 
         // Assigner les membres d'équipage aux stations d'armes
