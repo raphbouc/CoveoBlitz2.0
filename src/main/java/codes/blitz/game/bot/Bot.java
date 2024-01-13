@@ -83,13 +83,13 @@ public class Bot {
         Ship myShip = gameMessage.ships().get(gameMessage.currentTeamId());
 
         // Vérifier l'état du bouclier et déplacer le membre d'équipage flexible si nécessaire
-        if (myShip.currentShield() > 75 && flexibleCrewmateId != null && !isFlexibleCrewmateAtTurret) {
+        if ((myShip.currentShield() > 75 && flexibleCrewmateId != null && !isFlexibleCrewmateAtTurret) || myShip.currentHealth() < 75) {
             TurretStation turretStation = findAvailableTurretStation(myShip.stations().turrets());
             if (turretStation != null) {
                 actions.add(new MoveCrewAction(flexibleCrewmateId, turretStation.gridPosition()));
                 isFlexibleCrewmateAtTurret = true; // Le membre est maintenant à une tourelle
             }
-        } else if (myShip.currentShield() <= 50 && flexibleCrewmateId != null) {
+        } else if (myShip.currentShield() <= 25 && flexibleCrewmateId != null) {
             ShieldStation shieldStation = findAvailableShieldStation(myShip.stations().shields());
             if (shieldStation != null) {
                 actions.add(new MoveCrewAction(flexibleCrewmateId, shieldStation.gridPosition()));
