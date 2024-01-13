@@ -22,7 +22,6 @@ public class Bot {
         List<Crewmate> idleCrewmates = new ArrayList<>(myShip.crew());
         idleCrewmates.removeIf(crewmate -> crewmate.currentStation() != null || crewmate.destination() != null);
 
-        // Assign the first two idle crewmates to shield stations if available
         List<ShieldStation> shieldStations = new ArrayList<>(myShip.stations().shields());
         for (int i = 0; i < Math.min(2, idleCrewmates.size()); i++) {
             Crewmate crewmate = idleCrewmates.get(i);
@@ -33,12 +32,27 @@ public class Bot {
             }
         }
 
+        TurretStation fastTurret = null;
+        List<TurretStation> allTurrets = myShip.stations().turrets();
+
+        for (TurretStation turretStation : allTurrets) {
+            // Assurez-vous que la comparaison avec le type de turret est correcte
+            if (turretStation.turretType() == TurretType.FAST) {
+                fastTurret = turretStation;
+                break;
+            }
+        }
+
+        if (fastTurret != null && !idleCrewmates.isEmpty()) {
+            Crewmate crewmate = idleCrewmates.get(2);
+            actions.add(new MoveCrewAction(crewmate.id(), fastTurret.gridPosition()));
+            idleCrewmates.remove(crewmate);
+        }
+
         // Now assign other idle crewmates to random stations
         for (Crewmate crewmate : idleCrewmates) {
             List<StationDistance> visitableStations = new ArrayList<>();
             visitableStations.addAll(crewmate.distanceFromStations().turrets());
-            visitableStations.addAll(crewmate.distanceFromStations().helms());
-            visitableStations.addAll(crewmate.distanceFromStations().radars());
 
             if (!visitableStations.isEmpty()) {
                 StationDistance stationToMoveTo = visitableStations.get(new Random().nextInt(visitableStations.size()));
