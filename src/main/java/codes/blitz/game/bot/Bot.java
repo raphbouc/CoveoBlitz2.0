@@ -50,6 +50,16 @@ public class Bot {
             }
         }
 
+        List<HelmStation> helmStations = new ArrayList<>(myShip.stations().helms());
+        for (int i = 0; i < Math.min(2, idleCrewmates.size()); i++) {
+            Crewmate crewmate = idleCrewmates.get(i);
+            if (i < helmStations.size()) {
+                HelmStation helmStation = helmStations.get(i);
+                actions.add(new MoveCrewAction(crewmate.id(), helmStation.gridPosition()));
+                idleCrewmates.remove(crewmate);
+            }
+        }
+
 
 
         // Now assign other idle crewmates to random stations
@@ -88,8 +98,19 @@ public class Bot {
         List<HelmStation> operatedHelmStation = new ArrayList<>(myShip.stations().helms());
         operatedHelmStation.removeIf(helmStation -> helmStation.operator() == null);
         for (HelmStation helmStation : operatedHelmStation) {
-            actions.add(new RotateShipAction(90));
+            // Look at the nearest enemy
+            if (!otherShipsIds.isEmpty()) {
+                String enemyId = otherShipsIds.get(0);
+                Position enemyPosition = gameMessage.shipsPositions().get(enemyId);
+
+                // Calculate the vector to the enemy
+                Vector directionToEnemy = new Vector(enemyPosition.x() - myShip.worldPosition().x(), enemyPosition.y() - myShip.worldPosition().y());
+
+                // Use LookAt action to face the enemy
+                actions.add(new ShipLookAtAction(directionToEnemy));
+            }
         }
+
 
         List<RadarStation> operatedRadarStations = new ArrayList<>(myShip.stations().radars());
         operatedRadarStations.removeIf(radarStation -> radarStation.operator() == null);
