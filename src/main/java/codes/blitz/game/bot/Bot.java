@@ -2,6 +2,8 @@ package codes.blitz.game.bot;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+
 import java.util.Random;
 
 import codes.blitz.game.message.game.*;
@@ -19,7 +21,7 @@ public class Bot {
         List<Action> actions = new ArrayList<>();
 
         // Vérifier si c'est le premier tick
-        if (gameMessage.currentTickNumber() == 1) {
+        if (gameMessage.currentTickNumber() <= 1) {
             // Actions spécifiques pour le premier tick
             actions.addAll(handleFirstTick(gameMessage));
         } else {
@@ -48,6 +50,9 @@ public class Bot {
                 flexibleCrewmateId = crewmate.id();
             }
         }
+        Position farthestEnemyPosition = findFarthestEnemyShipPosition(myShip.worldPosition(), gameMessage.shipsPositions());
+
+       // Vector positionEnnemy = new Vector((farthestEnemyPosition.x()), farthestEnemyPosition.y());
 
         // Assignez les Crewmates aux stations de type FAST, EMP, NORMAL, CANNON, SNIPER dans cet ordre de priorité
         List<TurretStation> turretStations = new ArrayList<>(myShip.stations().turrets());
@@ -60,6 +65,25 @@ public class Bot {
                     break; // Sortir de la boucle interne une fois qu'un Crewmate est assigné
                 }
             }
+        }
+
+        List<TurretStation> turretOrientation = new ArrayList<>(myShip.stations().turrets());
+        System.out.println("liste  :  " + turretOrientation);
+        for (TurretStation turretStation : turretStations) {
+
+                //Vector test = new Vector (1,0);
+                //actions.add(new TurretLookAtAction(turretStation.id(), positionEnnemy));
+                //actions.add(new TurretLookAtAction(turretStation.id(), farthestEnemyPosition.toVector()));
+
+            System.out.println("|||||||||"+ turretStation.operator()+ " -" + turretStation.orientationDegrees());
+                actions.add(new RotateTurretAction(turretStation.id(), 270));
+                System.out.println("turrelOrientationdegree    :   " +   turretStation.orientationDegrees());
+
+                // actions.add(new TurretShootAction(turretStation.id()));
+               // System.out.println("shooter   :   " + positionEnnemy);
+                System.out.println(" direction   : " + farthestEnemyPosition);
+                System.out.println("ajjsj    :  " + gameMessage.shipsPositions());
+
         }
 
         // Assigner les membres d'équipage aux stations d'armes
@@ -96,12 +120,17 @@ public class Bot {
                 isFlexibleCrewmateAtTurret = false; // Le membre est maintenant au bouclier
             }
         }
+        Position farthestEnemyPosition = findFarthestEnemyShipPosition(myShip.worldPosition(), gameMessage.shipsPositions());
+
         // Actions pour les membres d'équipage aux stations de tir (tourelles)
         List<TurretStation> operatedTurretStations = new ArrayList<>(myShip.stations().turrets());
         operatedTurretStations.removeIf(turretStation -> turretStation.operator() == null);
 
+
         for (TurretStation turretStation : operatedTurretStations) {
+
             actions.add(new TurretShootAction(turretStation.id()));
+            actions.add(new TurretLookAtAction(turretStation.id(), farthestEnemyPosition.toVector()));
         }
 
         // Ajoutez ici d'autres actions répétitives pour chaque tick
@@ -139,5 +168,29 @@ public class Bot {
             }
         }
         return null;
+    }
+
+    private double calculateDistance(Position p1, Position p2) {
+        double deltaX = p2.x() - p1.x();
+        double deltaY = p2.y() - p1.y();
+        return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    }
+    private Position findFarthestEnemyShipPosition(Position myPosition, Map<String, Position> shipsPositions) {
+        double maxDistance = 0;
+        Position farthestEnemyPosition = null;
+
+        for (Map.Entry<String, Position> entry : shipsPositions.entrySet()) {
+            String enemyId = entry.getKey();
+            Position enemyPosition = entry.getValue();
+
+            double distance = calculateDistance(myPosition, enemyPosition);
+
+            if (distance > maxDistance) {
+                maxDistance = distance;
+                farthestEnemyPosition = enemyPosition;
+            }
+        }
+
+        return farthestEnemyPosition;
     }
 }
