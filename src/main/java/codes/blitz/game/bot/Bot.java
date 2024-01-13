@@ -16,6 +16,8 @@ public class Bot {
     private String flexibleCrewmateId = null; // ID du membre d'équipage flexible
     private boolean isFlexibleCrewmateAtTurret = false; // Indique si le membre flexible est actuellement à une tourelle
 
+    private Position cible = null;
+
 
     public List<Action> getActions(GameMessage gameMessage) {
         List<Action> actions = new ArrayList<>();
@@ -35,6 +37,8 @@ public class Bot {
     private List<Action> handleFirstTick(GameMessage gameMessage) {
         List<Action> actions = new ArrayList<>();
         Ship myShip = gameMessage.ships().get(gameMessage.currentTeamId());
+
+        cible = findFarthestEnemyShipPosition(myShip.worldPosition(), gameMessage.shipsPositions());
 
         List<Crewmate> idleCrewmates = new ArrayList<>(myShip.crew());
         //idleCrewmates.removeIf(crewmate -> crewmate.currentStation() != null || crewmate.destination() != null);
@@ -101,7 +105,8 @@ public class Bot {
                 isFlexibleCrewmateAtTurret = false; // Le membre est maintenant au bouclier
             }
         }
-        Position farthestEnemyPosition = findFarthestEnemyShipPosition(myShip.worldPosition(), gameMessage.shipsPositions());
+
+        cible = findFarthestEnemyShipPosition(myShip.worldPosition(), gameMessage.shipsPositions());
 
         // Actions pour les membres d'équipage aux stations de tir (tourelles)
         List<TurretStation> operatedTurretStations = new ArrayList<>(myShip.stations().turrets());
@@ -110,8 +115,9 @@ public class Bot {
 
         for (TurretStation turretStation : operatedTurretStations) {
 
+
             actions.add(new TurretShootAction(turretStation.id()));
-            actions.add(new TurretLookAtAction(turretStation.id(), farthestEnemyPosition.toVector()));
+            actions.add(new TurretLookAtAction(turretStation.id(), cible.toVector()));
         }
 
         // Ajoutez ici d'autres actions répétitives pour chaque tick
@@ -174,4 +180,6 @@ public class Bot {
 
         return farthestEnemyPosition;
     }
+
+
 }
